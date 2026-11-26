@@ -1,0 +1,37 @@
+name: Build APK
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, cache: true }
+      - run: flutter --version
+      - name: Android scaffold + patch
+        run: bash tool/bootstrap.sh
+      - name: Local map glyphs (non-fatal)
+        continue-on-error: true
+        run: bash tool/make_glyphs.sh
+      - run: flutter pub get
+      - name: Dependency audit (no foreign cloud/telemetry SDKs)
+        run: bash tool/audit_network.sh
+      - run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - run: flutter test
+      - run: flutter build apk --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iskolesil-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pubspec-lock
+          path: pubspec.lock
