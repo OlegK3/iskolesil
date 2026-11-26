@@ -26,6 +26,21 @@ jobs:
         run: bash tool/audit_network.sh
       - run: flutter analyze --no-fatal-infos --no-fatal-warnings
       - run: flutter test
+      - name: Gradle init script (compileSdk 36 for all plugins)
+        run: |
+          mkdir -p ~/.gradle/init.d
+          cat > ~/.gradle/init.d/compilesdk.gradle <<'GRADLE'
+          allprojects { proj ->
+            proj.plugins.withId('com.android.library') {
+              proj.afterEvaluate {
+                def a = proj.extensions.findByName('android')
+                if (a != null) {
+                  try { a.compileSdk = 36 } catch (Throwable e) { a.compileSdkVersion(36) }
+                }
+              }
+            }
+          }
+          GRADLE
       - run: flutter build apk --release
       - uses: actions/upload-artifact@v4
         with:
