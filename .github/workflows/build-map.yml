@@ -1,0 +1,23 @@
+name: Build city map (MBTiles)
+on:
+  workflow_dispatch:
+    inputs:
+      id: { description: 'ID города', default: 'barnaul' }
+      name: { description: 'Название', default: 'Барнаул' }
+      bounds: { description: 'minLon,minLat,maxLon,maxLat', default: '83.2,52.95,84.4,53.75' }
+      pbf: { description: 'URL .osm.pbf', default: 'https://download.geofabrik.de/russia/siberian-fed-district-latest.osm.pbf' }
+jobs:
+  map:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
+      - run: bash tool/build_city_map.sh "${{ inputs.id }}" "${{ inputs.name }}" "${{ inputs.bounds }}" "${{ inputs.pbf }}" 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: city-map-${{ inputs.id }}
+          path: |
+            work/${{ inputs.id }}.mbtiles
+            work/${{ inputs.id }}.catalog.json
