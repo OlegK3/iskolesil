@@ -32,11 +32,9 @@ jobs:
           cat > ~/.gradle/init.d/compilesdk.gradle <<'GRADLE'
           allprojects { proj ->
             proj.plugins.withId('com.android.library') {
-              proj.afterEvaluate {
-                def a = proj.extensions.findByName('android')
-                if (a != null) {
-                  try { a.compileSdk = 36 } catch (Throwable e) { a.compileSdkVersion(36) }
-                }
+              proj.extensions.getByName('androidComponents').finalizeDsl { dsl ->
+                def cur = dsl.compileSdk
+                if (cur == null || cur < 36) { dsl.compileSdk = 36 }
               }
             }
           }
