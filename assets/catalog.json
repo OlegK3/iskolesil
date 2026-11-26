@@ -1,0 +1,20 @@
+{
+  "_comment": "Встроенный каталог. URL и контрольная сумма заполняются только после реального размещения файла в РФ (см. docs/MAPS.md). Пустой url = установка только из локального файла.",
+  "schema": 1,
+  "cities": [
+    {
+      "id": "barnaul",
+      "name": "Барнаул",
+      "region": "Алтайский край",
+      "country": "Россия",
+      "center": { "lat": 53.3548, "lon": 83.7698 },
+      "bounds": { "minLat": 52.95, "minLon": 83.2, "maxLat": 53.75, "maxLon": 84.4 },
+      "version": 0,
+      "updatedAt": null,
+      "sizeBytes": null,
+      "url": null,
+      "sha256": null,
+      "status": "local-file-only"
+    }
+  ]
+}
