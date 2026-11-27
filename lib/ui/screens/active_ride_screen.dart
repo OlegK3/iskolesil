@@ -5,9 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format.dart';
 import '../../core/theme.dart';
+import '../../domain/models.dart';
 import '../../providers.dart';
 import '../../services/recording_controller.dart';
 import '../widgets/common.dart';
+import '../widgets/locate_button.dart';
 import '../widgets/track_map.dart';
 import 'ride_detail_screen.dart';
 
@@ -18,11 +20,11 @@ class ActiveRideScreen extends ConsumerStatefulWidget {
 }
 
 class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
-  bool _locked = false;
   bool _finishing = false;
   bool _follow = true;
   bool _showPrev = true;
   int _centerNonce = 0;
+  LatLon? _locatePos;
 
   (Color, String) _gpsInfo(GpsState g) => switch (g) {
         GpsState.good => (AppColors.gps, 'GPS: хороший сигнал'),
@@ -33,6 +35,16 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
         GpsState.denied => (AppColors.accent, 'Нет разрешения на GPS'),
         GpsState.unknown => (AppColors.secondary, 'GPS'),
       };
+
+  Future<void> _locate() async {
+    final p = await locateUser(context, ref);
+    if (p == null || !mounted) return;
+    setState(() {
+      _locatePos = p;
+      _follow = true; // во время поездки камера следует за пользователем
+      _centerNonce++;
+    });
+  }
 
   Future<void> _finish() async {
     final ctrl = ref.read(recordingProvider.notifier);
@@ -92,6 +104,10 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
               position: st.position,
               follow: _follow,
               centerNonce: _centerNonce,
+              centerOn: _locatePos ?? st.position,
+              onUserGesture: () {
+                if (_follow) setState(() => _follow = false);
+              },
             ),
           ),
           SafeArea(
@@ -128,14 +144,7 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
                   const Spacer(),
                   Column(
                     children: [
-                      _MapButton(
-                        icon: Icons.my_location,
-                        active: _follow,
-                        onTap: () => setState(() {
-                          _follow = true;
-                          _centerNonce++;
-                        }),
-                      ),
+                      LocateButton(onPressed: _locate),
                       const SizedBox(height: 8),
                       _MapButton(
                         icon: Icons.layers_outlined,
@@ -226,23 +235,12 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
                           child: const Text('Завершить'),
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      SizedBox(
-                        width: 60,
-                        height: 60,
-                        child: OutlinedButton(
-                          style: OutlinedButton.styleFrom(padding: EdgeInsets.zero),
-                          onPressed: () => setState(() => _locked = true),
-                          child: const Icon(Icons.lock_outline),
-                        ),
-                      ),
                     ],
                   ),
                 ],
               ),
             ),
           ),
-          if (_locked) _LockOverlay(onUnlock: () => setState(() => _locked = false)),
         ],
       ),
     );
@@ -260,45 +258,6 @@ class _MapButton extends StatelessWidget {
         child: IconButton(
           icon: Icon(icon, color: active ? AppColors.accent : AppColors.text),
           onPressed: onTap,
-        ),
-      );
-}
-
-/// Блокировка от случайных нажатий: все касания поглощаются,
-/// разблокировка — долгое нажатие на замок.
-class _LockOverlay extends StatelessWidget {
-  const _LockOverlay({required this.onUnlock});
-  final VoidCallback onUnlock;
-  @override
-  Widget build(BuildContext context) => Positioned.fill(
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () {},
-          onPanUpdate: (_) {},
-          child: ColoredBox(
-            color: const Color(0x99000000),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  GestureDetector(
-                    onLongPress: onUnlock,
-                    child: Container(
-                      width: 96,
-                      height: 96,
-                      decoration: const BoxDecoration(
-                          color: AppColors.accent, shape: BoxShape.circle),
-                      child: const Icon(Icons.lock, color: Colors.white, size: 44),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text('Удерживайте замок, чтобы разблокировать.\nЗапись продолжается.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white, fontSize: 15)),
-                ],
-              ),
-            ),
-          ),
         ),
       );
 }

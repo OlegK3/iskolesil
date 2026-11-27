@@ -2,64 +2,36 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/config.dart';
-import '../../core/format.dart';
 import '../../core/theme.dart';
-import '../../domain/stats.dart';
 import '../../providers.dart';
-import '../../services/location_service.dart';
 import '../../services/recording_controller.dart';
 import '../widgets/common.dart';
+import 'about_screen.dart';
 import 'active_ride_screen.dart';
-import 'city_maps_screen.dart';
 import 'home_shell.dart';
 import 'settings_screen.dart';
+import 'trip_prep_screen.dart';
 
+const _homeImage = 'assets/images/iskolesil_home.jpg';
+
+/// Главная страница: шапка, городское фото с кнопкой «Начать поездку»,
+/// карточки разделов, город и «О приложении».
 class StartScreen extends ConsumerWidget {
   const StartScreen({super.key});
 
-  Future<void> _start(BuildContext context, WidgetRef ref) async {
+  void _start(BuildContext context, WidgetRef ref) {
     final rec = ref.read(recordingProvider);
-    if (!rec.active) {
-      final r = await ref.read(recordingProvider.notifier).start();
-      if (!r.ok) {
-        if (!context.mounted) return;
-        await _permissionDialog(context, ref, r.permission);
-        return;
-      }
-    }
-    if (!context.mounted) return;
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => const ActiveRideScreen()));
-  }
-
-  Future<void> _permissionDialog(
-      BuildContext context, WidgetRef ref, LocPermission? p) async {
-    final text = switch (p) {
-      LocPermission.serviceDisabled =>
-        'Геолокация выключена. Включите её в шторке уведомлений или настройках телефона.',
-      LocPermission.deniedForever =>
-        'Доступ к геолокации запрещён. Разрешите его в настройках приложения.',
-      _ => 'Для записи поездки нужен доступ к геолокации.',
-    };
-    final open = await confirm(context,
-        title: 'Нет доступа к GPS',
-        text: text,
-        yes: 'Открыть настройки',
-        no: 'Закрыть');
-    if (open) await ref.read(locationServiceProvider).openSettings();
+    // Идущая поездка: сразу на экран записи. Иначе — «Куда поедем?».
+    Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) =>
+            rec.active ? const ActiveRideScreen() : const TripPrepScreen()));
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final ridesAsync = ref.watch(ridesProvider);
     final cities = ref.watch(installedCitiesProvider).valueOrNull ?? const [];
     final settings = ref.watch(settingsProvider);
     final rec = ref.watch(recordingProvider);
-    final units = settings.measurementUnits;
-    final rides = ridesAsync.valueOrNull ?? const [];
-    final all = StatsCalculator.compute(rides);
-    final month = StatsCalculator.compute(
-        StatsCalculator.filter(rides, StatsPeriod.month, DateTime.now()));
     final cityName = cities.isEmpty
         ? AppConfig.defaultCityName
         : cities
@@ -67,128 +39,276 @@ class StartScreen extends ConsumerWidget {
                 orElse: () => cities.first)
             .name;
 
+    void tab(int i) => ref.read(tabIndexProvider.notifier).state = i;
+
     return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        children: [
-          Row(
-            children: [
-              const AppLogo(),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(AppConfig.appName,
-                        style: TextStyle(
-                            fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 1)),
-                    Text(AppConfig.slogan,
-                        style: TextStyle(fontSize: 12, color: AppColors.secondary)),
-                  ],
-                ),
-              ),
-              IconButton(
-                tooltip: 'Настройки',
-                icon: const Icon(Icons.settings_outlined),
-                onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const SettingsScreen())),
-              ),
-            ],
+      child: LayoutBuilder(builder: (context, box) {
+        final compact = box.maxHeight < 620;
+        final hero = _Hero(
+          active: rec.active,
+          onStart: () => _start(context, ref),
+        );
+        final body = <Widget>[
+          _Header(
+            onSettings: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SettingsScreen())),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          if (compact) SizedBox(height: 260, child: hero) else Expanded(child: hero),
+          const SizedBox(height: 14),
           Row(children: [
-            const Icon(Icons.location_on_outlined, size: 18, color: AppColors.secondary),
-            const SizedBox(width: 4),
-            Text(cityName,
-                style: const TextStyle(fontWeight: FontWeight.w600)),
+            Expanded(
+              child: _NavCard(
+                icon: Icons.map_outlined,
+                title: 'Моя карта',
+                subtitle: 'Пройденные улицы',
+                onTap: () => tab(1),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _NavCard(
+                icon: Icons.bar_chart_outlined,
+                title: 'Статистика',
+                subtitle: 'Километры, время',
+                onTap: () => tab(3),
+              ),
+            ),
           ]),
           const SizedBox(height: 12),
-          if (cities.isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: AppCard(
-                onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const CityMapsScreen())),
-                child: const Row(children: [
-                  Icon(Icons.map_outlined, color: AppColors.accent),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                        'Карта города не установлена. Установите её, чтобы видеть улицы без интернета. Запись поездок работает и без карты.',
-                        style: TextStyle(fontSize: 13)),
+          _NavCard(
+            icon: Icons.history,
+            title: 'История',
+            subtitle: 'Все поездки',
+            onTap: () => tab(2),
+          ),
+          const SizedBox(height: 14),
+          _Footer(
+            city: cityName,
+            onAbout: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const AboutScreen())),
+          ),
+        ];
+        final pad = const EdgeInsets.fromLTRB(16, 8, 16, 12);
+        if (compact) {
+          return ListView(padding: pad, children: body);
+        }
+        return Padding(
+          padding: pad,
+          child: Column(children: body),
+        );
+      }),
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  const _Header({required this.onSettings});
+  final VoidCallback onSettings;
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.asset('assets/images/iskolesil_icon.png',
+                width: 46, height: 46),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(AppConfig.appName,
+                    style: TextStyle(
+                        fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                Text(AppConfig.tagline,
+                    style: TextStyle(fontSize: 13, color: AppColors.secondary)),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Настройки',
+            iconSize: 28,
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: onSettings,
+          ),
+        ],
+      );
+}
+
+class _Hero extends StatelessWidget {
+  const _Hero({required this.active, required this.onStart});
+  final bool active;
+  final VoidCallback onStart;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset(_homeImage,
+              fit: BoxFit.cover, alignment: const Alignment(0, 0.3)),
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0x00000000), Color(0x00000000), Color(0x66000000)],
+                stops: [0, 0.55, 1],
+              ),
+            ),
+          ),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 16),
+              child: _StartButton(active: active, onTap: onStart),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StartButton extends StatelessWidget {
+  const _StartButton({required this.active, required this.onTap});
+  final bool active;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 80,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(40),
+        boxShadow: const [
+          BoxShadow(color: Color(0x44000000), blurRadius: 18, offset: Offset(0, 6)),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(40),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(26, 0, 10, 0),
+            child: Row(children: [
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    active ? 'Продолжить поездку' : 'Начать поездку',
+                    style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.text),
                   ),
-                  Icon(Icons.chevron_right, color: AppColors.secondary),
-                ]),
+                ),
               ),
-            ),
-          SizedBox(
-            height: 76,
-            child: FilledButton(
-              style: FilledButton.styleFrom(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
-              onPressed: () => _start(context, ref),
-              child: Text(
-                  rec.active ? 'Продолжить поездку' : 'Начать поездку',
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-            ),
+              Container(
+                width: 60,
+                height: 60,
+                decoration: const BoxDecoration(
+                    color: AppColors.accent, shape: BoxShape.circle),
+                child: const Icon(Icons.play_arrow_rounded,
+                    color: Colors.white, size: 38),
+              ),
+            ]),
           ),
-          const SizedBox(height: 16),
-          AppCard(
-            child: Row(
+        ),
+      ),
+    );
+  }
+}
+
+class _NavCard extends StatelessWidget {
+  const _NavCard(
+      {required this.icon,
+      required this.title,
+      required this.subtitle,
+      required this.onTap});
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => AppCard(
+        onTap: onTap,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFDE6E8),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: AppColors.accent),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                    child: BigStat(
-                        value: distanceParts(all.distanceMeters, units).$1,
-                        unit: distanceParts(all.distanceMeters, units).$2,
-                        label: 'Всего')),
-                Expanded(
-                    child: BigStat(
-                        value: fmtDurationLong(all.durationSeconds),
-                        label: 'Время',
-                        size: 22)),
-                Expanded(
-                    child: BigStat(
-                        value: '${all.rideCount}', label: 'Поездок')),
+                Text(title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                Text(subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: AppColors.secondary, fontSize: 12)),
               ],
             ),
           ),
-          const SectionTitle('Этот месяц'),
-          AppCard(
-            child: Row(
-              children: [
-                Expanded(
-                    child: BigStat(
-                        value: distanceParts(month.distanceMeters, units).$1,
-                        unit: distanceParts(month.distanceMeters, units).$2,
-                        label: 'Расстояние',
-                        size: 24)),
-                Expanded(
-                    child: BigStat(
-                        value: speedParts(month.averageSpeed, units).$1,
-                        unit: speedParts(month.averageSpeed, units).$2,
-                        label: 'Средняя',
-                        size: 24)),
-                Expanded(
-                    child: BigStat(
-                        value: '${month.rideCount}', label: 'Поездок', size: 24)),
-              ],
+        ]),
+      );
+}
+
+/// Низ страницы: продолжение городского фото (приглушённое), город и «О приложении».
+class _Footer extends StatelessWidget {
+  const _Footer({required this.city, required this.onAbout});
+  final String city;
+  final VoidCallback onAbout;
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Opacity(
+              opacity: 0.16,
+              child: Image.asset(_homeImage,
+                  fit: BoxFit.cover, alignment: const Alignment(0, 0.9)),
             ),
           ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            icon: const Icon(Icons.map_outlined),
-            label: const Text('Моя карта'),
-            onPressed: () => ref.read(tabIndexProvider.notifier).state = 1,
-          ),
-          if (rides.isEmpty)
-            const Padding(
-              padding: EdgeInsets.only(top: 16),
-              child: Text(
-                'Пока нет ни одной поездки. Нажмите «Начать поездку» — всё, что вы проедете, останется на вашей карте.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.secondary),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(children: [
+              const Icon(Icons.location_on_outlined,
+                  size: 20, color: AppColors.accent),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(city,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
               ),
-            ),
+              OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 42),
+                    backgroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16)),
+                onPressed: onAbout,
+                child: const Text('О приложении', style: TextStyle(fontSize: 14)),
+              ),
+            ]),
+          ),
         ],
       ),
     );

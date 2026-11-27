@@ -4,7 +4,8 @@
 class AppConfig {
   static const String appName = 'ИСКОЛЕСИЛ';
   static const String slogan = 'У каждой улицы — твоя история';
-  static const String version = '0.1.0';
+  static const String tagline = 'Велотрекер города';
+  static const String version = '0.2.0';
 
   /// URL JSON-каталога карт городов (сервер в РФ). Пусто = только локальный каталог.
   static const String catalogUrl =

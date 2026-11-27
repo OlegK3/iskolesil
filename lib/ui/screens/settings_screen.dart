@@ -13,7 +13,6 @@ import '../../providers.dart';
 import '../../services/location_service.dart';
 import '../widgets/common.dart';
 import 'city_maps_screen.dart';
-import 'demo_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -215,15 +214,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             AppCard(
               padding: EdgeInsets.zero,
               child: Column(children: [
-                ListTile(
-                  leading: const Icon(Icons.science_outlined),
-                  title: const Text('Демонстрационный режим'),
-                  subtitle: const Text('Тестовые данные, не попадают в вашу статистику'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.of(context)
-                      .push(MaterialPageRoute(builder: (_) => const DemoScreen())),
-                ),
-                const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.info_outline),
                   title: const Text('Карты и атрибуция'),

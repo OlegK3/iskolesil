@@ -30,6 +30,7 @@ class _RideDetailScreenState extends ConsumerState<RideDetailScreen> {
   final _desc = TextEditingController();
   bool _loaded = false;
   bool _busy = false;
+  int _fitTick = 0;
 
   @override
   void dispose() {
@@ -165,16 +166,40 @@ class _RideDetailScreenState extends ConsumerState<RideDetailScreen> {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(16),
                     child: SizedBox(
-                      height: 260,
-                      child: TrackMap(
-                        previous: [
-                          for (final e in all.entries)
-                            if (e.key != ride.id) e.value
-                        ],
-                        highlighted: segs,
-                        fitBounds: bounds,
-                        fitNonce: segs.length + 1,
-                      ),
+                      height: 280,
+                      child: Stack(children: [
+                        Positioned.fill(
+                          child: TrackMap(
+                            previous: [
+                              for (final e in all.entries)
+                                if (e.key != ride.id) e.value
+                            ],
+                            highlighted: segs,
+                            fitBounds: bounds,
+                            fitNonce: segs.length + 1 + _fitTick * 1000,
+                          ),
+                        ),
+                        Positioned(
+                          right: 10,
+                          top: 10,
+                          child: Column(children: [
+                            _MapAction(
+                              icon: Icons.fit_screen_outlined,
+                              tooltip: 'Весь маршрут',
+                              onTap: () => setState(() => _fitTick++),
+                            ),
+                            const SizedBox(height: 8),
+                            _MapAction(
+                              icon: Icons.open_in_full,
+                              tooltip: 'На весь экран',
+                              onTap: () => Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                      builder: (_) =>
+                                          RouteMapScreen(rideId: ride.id))),
+                            ),
+                          ]),
+                        ),
+                      ]),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -275,6 +300,70 @@ class _RideDetailScreenState extends ConsumerState<RideDetailScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+class _MapAction extends StatelessWidget {
+  const _MapAction({required this.icon, required this.tooltip, required this.onTap});
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 44,
+        height: 44,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          boxShadow: [BoxShadow(color: Color(0x33000000), blurRadius: 8, offset: Offset(0, 2))],
+        ),
+        child: IconButton(
+          tooltip: tooltip,
+          padding: EdgeInsets.zero,
+          icon: Icon(icon, color: Colors.black, size: 22),
+          onPressed: onTap,
+        ),
+      );
+}
+
+/// Полноэкранный просмотр маршрута: масштабирование двумя пальцами,
+/// перемещение, возврат к исходному масштабу.
+class RouteMapScreen extends ConsumerStatefulWidget {
+  const RouteMapScreen({super.key, required this.rideId});
+  final String rideId;
+  @override
+  ConsumerState<RouteMapScreen> createState() => _RouteMapScreenState();
+}
+
+class _RouteMapScreenState extends ConsumerState<RouteMapScreen> {
+  int _fitTick = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final segs = ref.watch(rideSegmentsProvider(widget.rideId)).valueOrNull ?? const [];
+    final all = ref.watch(allSegmentsProvider).valueOrNull ?? const {};
+    final ride = ref.watch(rideProvider(widget.rideId)).valueOrNull;
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(ride?.title ?? 'Маршрут', maxLines: 1, overflow: TextOverflow.ellipsis),
+        actions: [
+          IconButton(
+            tooltip: 'Весь маршрут',
+            icon: const Icon(Icons.fit_screen_outlined),
+            onPressed: () => setState(() => _fitTick++),
+          ),
+        ],
+      ),
+      body: TrackMap(
+        previous: [
+          for (final e in all.entries)
+            if (e.key != widget.rideId) e.value
+        ],
+        highlighted: segs,
+        fitBounds: boundsOfSegments(segs),
+        fitNonce: segs.length + 1 + _fitTick * 1000,
+      ),
     );
   }
 }

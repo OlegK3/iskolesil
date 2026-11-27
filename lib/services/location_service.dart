@@ -67,6 +67,15 @@ class LocationService {
     return Geolocator.getPositionStream(locationSettings: settings);
   }
 
+  /// Поток положения для экранов вне поездки (без Foreground Service и
+  /// уведомления): только пока экран открыт.
+  Stream<Position> previewStream() => Geolocator.getPositionStream(
+      locationSettings: AndroidSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 5,
+        intervalDuration: const Duration(seconds: 3),
+      ));
+
   Stream<bool> serviceEnabledStream() => Geolocator.getServiceStatusStream()
       .map((s) => s == ServiceStatus.enabled);
 

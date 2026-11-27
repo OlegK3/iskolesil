@@ -1,5 +1,6 @@
 import 'dart:math' show Point;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
@@ -21,6 +22,9 @@ class TrackMap extends ConsumerStatefulWidget {
     this.fitBounds,
     this.fitNonce = 0,
     this.centerNonce = 0,
+    this.centerOn,
+    this.centerZoom = 16,
+    this.onUserGesture,
     this.onTap,
     this.interactive = true,
   });
@@ -34,7 +38,12 @@ class TrackMap extends ConsumerStatefulWidget {
   final bool follow;
   final GeoBounds? fitBounds;
   final int fitNonce; // изменение запускает подгонку границ
-  final int centerNonce; // изменение запускает центрирование на position
+  final int centerNonce; // изменение запускает центрирование (кнопка «Где я»)
+  final LatLon? centerOn; // куда центрировать по centerNonce (по умолчанию position)
+  final double centerZoom;
+
+  /// Пользователь двигает карту рукой (для отключения автоследования).
+  final VoidCallback? onUserGesture;
   final void Function(LatLon, double zoom)? onTap;
   final bool interactive;
 
@@ -123,6 +132,9 @@ class _TrackMapState extends ConsumerState<TrackMap> {
     _styleReady = true;
     await _push();
     _fit();
+    if (widget.fitBounds == null && widget.centerOn != null) {
+      _center(explicit: true);
+    }
   }
 
   /// Поэлементное сравнение по идентичности: родитель может пересоздавать
@@ -184,11 +196,20 @@ class _TrackMapState extends ConsumerState<TrackMap> {
     );
   }
 
-  void _center() {
+  /// [explicit] — нажатие «Где я»: ставим удобный масштаб. Иначе (следование)
+  /// масштаб пользователя не меняем.
+  void _center({bool explicit = false}) {
     final c = _c;
-    final p = widget.position;
+    final p = explicit ? (widget.centerOn ?? widget.position) : widget.position;
     if (c == null || !_styleReady || p == null) return;
-    c.animateCamera(CameraUpdate.newLatLng(LatLng(p.lat, p.lon)));
+    final target = LatLng(p.lat, p.lon);
+    if (explicit) {
+      final z = c.cameraPosition?.zoom ?? 0;
+      c.animateCamera(CameraUpdate.newLatLngZoom(
+          target, z < widget.centerZoom - 1 ? widget.centerZoom : z.clamp(widget.centerZoom - 1, 19).toDouble()));
+    } else {
+      c.animateCamera(CameraUpdate.newLatLng(target));
+    }
   }
 
   @override
@@ -199,7 +220,7 @@ class _TrackMapState extends ConsumerState<TrackMap> {
     if (!identical(old.highlighted, widget.highlighted)) _pushSel();
     if (old.position != widget.position) _pushPos();
     if (old.fitNonce != widget.fitNonce) _fit();
-    if (old.centerNonce != widget.centerNonce) _center();
+    if (old.centerNonce != widget.centerNonce) _center(explicit: true);
     if (widget.follow && old.position != widget.position) _center();
   }
 
@@ -211,7 +232,9 @@ class _TrackMapState extends ConsumerState<TrackMap> {
       error: (e, _) => Center(child: Text('Карта недоступна: $e')),
       data: (url) => Stack(
         children: [
-          MapLibreMap(
+          Listener(
+            onPointerMove: (_) => widget.onUserGesture?.call(),
+            child: MapLibreMap(
             key: ValueKey(url),
             styleString: url,
             initialCameraPosition: CameraPosition(
@@ -233,6 +256,12 @@ class _TrackMapState extends ConsumerState<TrackMap> {
             tiltGesturesEnabled: false,
             scrollGesturesEnabled: widget.interactive,
             zoomGesturesEnabled: widget.interactive,
+            // Карта забирает жесты первой: работает масштабирование двумя
+            // пальцами и перемещение даже внутри прокручиваемых экранов.
+            gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+              Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
+            },
+          ),
           ),
           const Positioned(
             left: 8,

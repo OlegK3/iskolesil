@@ -9,6 +9,7 @@ import '../../domain/geo.dart';
 import '../../domain/models.dart';
 import '../../providers.dart';
 import '../widgets/common.dart';
+import '../widgets/locate_button.dart';
 import '../widgets/track_map.dart';
 import 'ride_detail_screen.dart';
 
@@ -22,6 +23,8 @@ class _MyMapScreenState extends ConsumerState<MyMapScreen> {
   String? _selected;
   DateTimeRange? _range;
   int _fitNonce = 0;
+  LatLon? _myPos;
+  int _locNonce = 0;
 
   List<Ride> _visible(List<Ride> rides, Set<String> hidden) => rides.where((r) {
         if (hidden.contains(r.id)) return false;
@@ -50,6 +53,15 @@ class _MyMapScreenState extends ConsumerState<MyMapScreen> {
       }
     }
     setState(() => _selected = bestD <= threshold ? best : null);
+  }
+
+  Future<void> _locate() async {
+    final p = await locateUser(context, ref);
+    if (p == null || !mounted) return;
+    setState(() {
+      _myPos = p;
+      _locNonce++;
+    });
   }
 
   Future<void> _pickRange() async {
@@ -132,6 +144,9 @@ class _MyMapScreenState extends ConsumerState<MyMapScreen> {
           child: TrackMap(
             previous: prev,
             highlighted: high,
+            position: _myPos,
+            centerOn: _myPos,
+            centerNonce: _locNonce,
             fitBounds: selectedRide != null ? boundsOfSegments(high) : fit,
             fitNonce: _fitNonce + visible.length * 1000 + (segs.isEmpty ? 0 : 1),
             onTap: (p, z) => _onTap(p, z, segs, visible),
@@ -195,6 +210,11 @@ class _MyMapScreenState extends ConsumerState<MyMapScreen> {
               ],
             ),
           ),
+        ),
+        Positioned(
+          right: 12,
+          bottom: selectedRide != null ? 96 : 24,
+          child: LocateButton(onPressed: _locate),
         ),
         if (rides.isEmpty)
           const Positioned.fill(
