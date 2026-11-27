@@ -72,10 +72,12 @@ class _MyMapScreenState extends ConsumerState<MyMapScreen> {
       lastDate: DateTime(now.year + 1),
       initialDateRange: _range,
     );
-    if (r != null) setState(() {
-      _range = r;
-      _fitNonce++;
-    });
+    if (r != null) {
+      setState(() {
+        _range = r;
+        _fitNonce++;
+      });
+    }
   }
 
   void _hideSheet(List<Ride> rides) {
