@@ -215,7 +215,7 @@ class _MyMapScreenState extends ConsumerState<MyMapScreen> {
         ),
         Positioned(
           right: 12,
-          bottom: selectedRide != null ? 96 : 24,
+          bottom: selectedRide != null ? 132 : 48, // выше логотипа Яндекса
           child: LocateButton(onPressed: _locate),
         ),
         if (rides.isEmpty)
@@ -238,7 +238,7 @@ class _MyMapScreenState extends ConsumerState<MyMapScreen> {
           Positioned(
             left: 12,
             right: 12,
-            bottom: 12,
+            bottom: 44, // логотип Яндекса остаётся видимым
             child: AppCard(
               onTap: () => Navigator.of(context).push(MaterialPageRoute(
                   builder: (_) => RideDetailScreen(rideId: selectedRide.id))),

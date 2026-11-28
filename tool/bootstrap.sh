@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Создаёт Android-проект (android/) во временной папке и копирует его сюда,
-# затем применяет патч (разрешения, foreground service, localhost-only cleartext).
+# затем применяет патч (разрешения, MainApplication с ключом MapKit, иконка, подпись).
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"

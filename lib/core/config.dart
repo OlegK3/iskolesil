@@ -1,24 +1,15 @@
-/// Все настраиваемые адреса и константы приложения.
-/// Сетевые адреса задаются при сборке: --dart-define=CATALOG_URL=https://...
-/// По умолчанию приложение не обращается ни к каким внешним серверам.
+/// Константы приложения.
+/// Карта — онлайн, Яндекс MapKit. Ключ MapKit в код не вшит: он передаётся
+/// при сборке (см. docs/MAPKIT.md).
 class AppConfig {
   static const String appName = 'ИСКОЛЕСИЛ';
   static const String slogan = 'У каждой улицы — твоя история';
   static const String tagline = 'Велотрекер города';
-  static const String version = '0.2.0';
+  static const String version = '0.3.0';
 
-  /// URL JSON-каталога карт городов (сервер в РФ). Пусто = только локальный каталог.
-  static const String catalogUrl =
-      String.fromEnvironment('CATALOG_URL', defaultValue: '');
-
-  static const String defaultCityId = 'barnaul';
-  static const String defaultCityName = 'Барнаул';
-  static const double defaultCenterLat = 53.3548;
-  static const double defaultCenterLon = 83.7698;
-  static const double defaultZoom = 11.5;
-
-  static const String mapAttribution =
-      '© участники OpenStreetMap · схема OpenMapTiles';
-
-  static const String storageChannel = 'ru.iskolesil/storage';
+  /// Вид карты, пока положение пользователя неизвестно: вся страна,
+  /// без привязки к конкретному городу.
+  static const double fallbackLat = 61.5;
+  static const double fallbackLon = 99.5;
+  static const double fallbackZoom = 3;
 }

@@ -75,10 +75,6 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
     final settings = ref.watch(settingsProvider);
     final units = settings.measurementUnits;
     final all = ref.watch(allSegmentsProvider).valueOrNull ?? const {};
-    final cities = ref.watch(installedCitiesProvider).valueOrNull ?? const [];
-    final pos = st.position;
-    final covered = pos == null ||
-        cities.any((c) => c.bounds?.contains(pos.lat, pos.lon) ?? true);
 
     if (!st.active && !_finishing) {
       // Поездка завершена/удалена — возвращаемся.
@@ -93,8 +89,12 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
     final cur = speedParts(st.currentSpeed, units);
 
     return Scaffold(
-      body: Stack(
+      // Карта — над панелью, а не под ней: логотип Яндекса остаётся видимым.
+      body: Column(
         children: [
+          Expanded(
+            child: Stack(
+              children: [
           Positioned.fill(
             child: TrackMap(
               previous: _showPrev && settings.showPreviousRoutes
@@ -111,6 +111,7 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
             ),
           ),
           SafeArea(
+            bottom: false,
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Row(
@@ -129,12 +130,6 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       GpsDot(color: gpsColor, label: gpsText),
-                      if (!covered) ...[
-                        const SizedBox(height: 6),
-                        const GpsDot(
-                            color: AppColors.secondary,
-                            label: 'Здесь нет карты — запись идёт'),
-                      ],
                       if (paused) ...[
                         const SizedBox(height: 6),
                         const GpsDot(color: AppColors.accent, label: 'Пауза'),
@@ -157,9 +152,10 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
               ),
             ),
           ),
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Container(
+              ],
+            ),
+          ),
+          Container(
               decoration: const BoxDecoration(
                 color: AppColors.card,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -239,7 +235,6 @@ class _ActiveRideScreenState extends ConsumerState<ActiveRideScreen> {
                   ),
                 ],
               ),
-            ),
           ),
         ],
       ),

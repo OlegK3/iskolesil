@@ -98,7 +98,7 @@ String pluralRides(int n) {
 }
 
 /// Название по умолчанию: «Вечерняя поездка — Барнаул».
-String defaultRideTitle(DateTime startedAt, String city) {
+String defaultRideTitle(DateTime startedAt, [String city = '']) {
   final h = startedAt.toLocal().hour;
   final part = h >= 5 && h < 12
       ? 'Утренняя'
@@ -107,5 +107,5 @@ String defaultRideTitle(DateTime startedAt, String city) {
           : h >= 18 && h < 23
               ? 'Вечерняя'
               : 'Ночная';
-  return '$part поездка — $city';
+  return city.isEmpty ? '$part поездка' : '$part поездка — $city';
 }

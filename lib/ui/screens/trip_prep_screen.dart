@@ -103,8 +103,12 @@ class _TripPrepScreenState extends ConsumerState<TripPrepScreen> {
         title: const Text('Куда поедем?',
             style: TextStyle(fontWeight: FontWeight.w800, fontSize: 22)),
       ),
-      body: Stack(
+      // Карта — над нижней панелью: логотип Яндекса остаётся видимым.
+      body: Column(
         children: [
+          Expanded(
+            child: Stack(
+              children: [
           Positioned.fill(
             child: TrackMap(
               previous: settings.showPreviousRoutes
@@ -141,27 +145,20 @@ class _TripPrepScreenState extends ConsumerState<TripPrepScreen> {
                 ]),
               ),
             ),
-          Align(
-            alignment: Alignment.bottomCenter,
+              ],
+            ),
+          ),
+          Container(
+            color: Colors.white,
             child: SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: const [
-                          BoxShadow(color: Color(0x22000000), blurRadius: 8),
-                        ],
-                      ),
-                      child: const Text('Свободная поездка: запишем ваш маршрут по GPS',
-                          style: TextStyle(fontSize: 13, color: AppColors.secondary)),
-                    ),
+                    const Text('Свободная поездка: запишем ваш маршрут по GPS',
+                        style: TextStyle(fontSize: 13, color: AppColors.secondary)),
                     const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,

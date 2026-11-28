@@ -12,7 +12,7 @@ import '../ui/widgets/route_painter.dart';
 
 /// Рисует PNG маршрута: красная линия, название, показатели, логотип и
 /// атрибуция. В v0.1 подложка — светлая сетка без векторной карты
-/// (отрисовка тайлов вне MapLibre не реализована; см. README, ограничения).
+/// (фон карты на картинке не рисуется; см. README, ограничения).
 class RouteImageExporter {
   static Future<Uint8List> render({
     required Ride ride,
@@ -92,8 +92,6 @@ class RouteImageExporter {
     text('И', const Offset(80, 1246), size: 48, weight: FontWeight.w900, color: Colors.white, maxWidth: 40);
     text(AppConfig.appName, const Offset(140, 1248), size: 36, weight: FontWeight.w900, maxWidth: 400);
     text(AppConfig.slogan, const Offset(140, 1292), size: 22, color: AppColors.secondary, maxWidth: 500);
-    text(AppConfig.mapAttribution, const Offset(560, 1296),
-        size: 20, color: AppColors.secondary, maxWidth: 460);
 
     final pic = recorder.endRecording();
     final img = await pic.toImage(w.toInt(), h.toInt());

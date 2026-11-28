@@ -8,8 +8,6 @@ import 'domain/models.dart';
 import 'domain/repositories.dart';
 import 'services/data_exchange.dart';
 import 'services/location_service.dart';
-import 'services/map/city_map_service.dart';
-import 'services/map/mbtiles_server.dart';
 
 // ---- Инфраструктура (переопределяется в main) ----
 final databaseProvider = Provider<AppDatabase>((ref) => throw UnimplementedError());
@@ -20,21 +18,15 @@ final rideRepoProvider =
     Provider<RideRepository>((ref) => SqliteRideRepository(ref.watch(databaseProvider)));
 final settingsRepoProvider = Provider<SettingsRepository>(
     (ref) => SqliteSettingsRepository(ref.watch(databaseProvider)));
-final cityRepoProvider = Provider<CityMapRepository>(
-    (ref) => SqliteCityMapRepository(ref.watch(databaseProvider)));
 
 final exchangeProvider = Provider<DataExchangeService>(
     (ref) => DataExchangeService(ref.watch(rideRepoProvider)));
 final locationServiceProvider = Provider<LocationService>((ref) => LocationService());
-final cityMapServiceProvider = Provider<CityMapService>(
-    (ref) => CityMapService(ref.watch(cityRepoProvider)));
 
 // ---- Ревизии данных: инкремент = перечитать зависимые провайдеры ----
 final rideRevisionProvider = StateProvider<int>((ref) => 0);
-final mapRevisionProvider = StateProvider<int>((ref) => 0);
 
 void bumpRides(WidgetRef ref) => ref.read(rideRevisionProvider.notifier).state++;
-void bumpMaps(WidgetRef ref) => ref.read(mapRevisionProvider.notifier).state++;
 
 // ---- Настройки ----
 class SettingsNotifier extends Notifier<AppSettings> {
@@ -87,28 +79,4 @@ final allSegmentsProvider =
       .watch(rideRepoProvider)
       .loadSegments(rides.map((r) => r.id).toSet());
   return compute(_simplifyMap, raw);
-});
-
-// ---- Карты ----
-final installedCitiesProvider = FutureProvider<List<CityMap>>((ref) {
-  ref.watch(mapRevisionProvider);
-  return ref.watch(cityRepoProvider).list();
-});
-
-final tileServerProvider = Provider<LocalTileServer>((ref) {
-  final s = LocalTileServer();
-  ref.onDispose(s.stop);
-  return s;
-});
-
-/// URL стиля локального сервера; меняется при смене набора карт.
-final styleUrlProvider = FutureProvider<String>((ref) async {
-  final cities = await ref.watch(installedCitiesProvider.future);
-  final server = ref.watch(tileServerProvider);
-  await server.start();
-  await server.setMaps([
-    for (final c in cities)
-      if (c.installationStatus == InstallStatus.installed) (c.localPath, c.bounds)
-  ]);
-  return server.styleUrl;
 });

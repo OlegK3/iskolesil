@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
-import '../core/config.dart';
 import '../core/format.dart';
 import '../core/ids.dart';
 import '../domain/models.dart';
@@ -156,10 +155,9 @@ class RecordingController extends Notifier<RecordingState> {
     _seg = 0;
     _segments = [];
     final now = DateTime.now().toUtc();
-    final cityName = _cityName();
     final ride = Ride(
       id: newId(),
-      title: defaultRideTitle(now, cityName),
+      title: defaultRideTitle(now),
       startedAt: now,
       status: RideStatus.recording,
       createdAt: now,
@@ -171,16 +169,6 @@ class RecordingController extends Notifier<RecordingState> {
     await _persistActive();
     _startStreams();
     return const StartResult(true);
-  }
-
-  String _cityName() {
-    final cities = ref.read(installedCitiesProvider).valueOrNull ?? const [];
-    final cur = ref.read(settingsProvider).currentCityId;
-    for (final c in cities) {
-      if (c.id == cur) return c.name;
-    }
-    if (cities.isNotEmpty) return cities.first.name;
-    return AppConfig.defaultCityName;
   }
 
   Future<void> pause() async {

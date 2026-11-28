@@ -29,15 +29,7 @@ class StartScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cities = ref.watch(installedCitiesProvider).valueOrNull ?? const [];
-    final settings = ref.watch(settingsProvider);
     final rec = ref.watch(recordingProvider);
-    final cityName = cities.isEmpty
-        ? AppConfig.defaultCityName
-        : cities
-            .firstWhere((c) => c.id == settings.currentCityId,
-                orElse: () => cities.first)
-            .name;
 
     void tab(int i) => ref.read(tabIndexProvider.notifier).state = i;
 
@@ -84,7 +76,6 @@ class StartScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 14),
           _Footer(
-            city: cityName,
             onAbout: () => Navigator.of(context)
                 .push(MaterialPageRoute(builder: (_) => const AboutScreen())),
           ),
@@ -269,10 +260,9 @@ class _NavCard extends StatelessWidget {
       );
 }
 
-/// Низ страницы: продолжение городского фото (приглушённое), город и «О приложении».
+/// Низ страницы: продолжение городского фото (приглушённое) и «О приложении».
 class _Footer extends StatelessWidget {
-  const _Footer({required this.city, required this.onAbout});
-  final String city;
+  const _Footer({required this.onAbout});
   final VoidCallback onAbout;
   @override
   Widget build(BuildContext context) {
@@ -289,25 +279,16 @@ class _Footer extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            child: Row(children: [
-              const Icon(Icons.location_on_outlined,
-                  size: 20, color: AppColors.accent),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(city,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-              ),
-              OutlinedButton(
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
                 style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 42),
-                    backgroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 16)),
+                    minimumSize: const Size(0, 44),
+                    backgroundColor: Colors.white),
                 onPressed: onAbout,
-                child: const Text('О приложении', style: TextStyle(fontSize: 14)),
+                child: const Text('О приложении', style: TextStyle(fontSize: 15)),
               ),
-            ]),
+            ),
           ),
         ],
       ),

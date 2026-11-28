@@ -12,3 +12,4 @@ build/
 assets/map/fonts/*/*.pbf
 *.mbtiles
 work/
+mapkit.properties

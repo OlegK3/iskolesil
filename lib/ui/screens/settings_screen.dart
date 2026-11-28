@@ -12,7 +12,6 @@ import '../../domain/models.dart';
 import '../../providers.dart';
 import '../../services/location_service.dart';
 import '../widgets/common.dart';
-import 'city_maps_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -106,14 +105,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   subtitle: const Text('Во время поездки, бледно-красным'),
                   value: s.showPreviousRoutes,
                   onChanged: (v) => notifier.update((x) => x.copyWith(showPreviousRoutes: v)),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.map_outlined),
-                  title: const Text('Карты городов'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const CityMapsScreen())),
                 ),
               ]),
             ),
@@ -216,18 +207,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               child: Column(children: [
                 ListTile(
                   leading: const Icon(Icons.info_outline),
-                  title: const Text('Карты и атрибуция'),
+                  title: const Text('Карта и лицензия'),
                   onTap: () => showDialog(
                     context: context,
                     builder: (c) => AlertDialog(
                       backgroundColor: Colors.white,
-                      title: const Text('Атрибуция'),
+                      title: const Text('Карта'),
                       content: const Text(
-                          '© участники OpenStreetMap (лицензия ODbL, openstreetmap.org/copyright).\n'
-                          'Схема векторных тайлов OpenMapTiles; тайлы генерируются Planetiler.\n'
-                          'Шрифты подписей: Noto Sans (SIL OFL).\n\n'
-                          'Приложение не отправляет координаты и историю поездок '
-                          'никуда: данные хранятся только на этом устройстве.'),
+                          'Карта: Яндекс MapKit SDK (бесплатная лицензия).\n\n'
+                          'Поездки и GPS-треки хранятся только на этом устройстве '
+                          'и не отправляются на сервер приложения.'),
                       actions: [
                         TextButton(
                             onPressed: () => Navigator.pop(c), child: const Text('Закрыть'))

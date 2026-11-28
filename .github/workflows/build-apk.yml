@@ -16,11 +16,19 @@ jobs:
       - uses: subosito/flutter-action@v2
         with: { channel: stable, cache: true }
       - run: flutter --version
-      - name: Android scaffold + patch
+      - name: Check Yandex MapKit key secret
+        env:
+          YANDEX_MAPKIT_API_KEY: ${{ secrets.YANDEX_MAPKIT_API_KEY }}
+        run: |
+          if [ -z "$YANDEX_MAPKIT_API_KEY" ]; then
+            echo "::error::Секрет YANDEX_MAPKIT_API_KEY не задан (или недоступен для этого запуска, например из fork-PR). Добавьте его: Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          echo "Секрет YANDEX_MAPKIT_API_KEY найден."
+      - name: Android scaffold + patch (injects MapKit key)
+        env:
+          YANDEX_MAPKIT_API_KEY: ${{ secrets.YANDEX_MAPKIT_API_KEY }}
         run: bash tool/bootstrap.sh
-      - name: Local map glyphs (non-fatal)
-        continue-on-error: true
-        run: bash tool/make_glyphs.sh
       - run: flutter pub get
       - name: Dependency audit (no foreign cloud/telemetry SDKs)
         run: bash tool/audit_network.sh

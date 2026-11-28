@@ -1,18 +1,37 @@
-import 'dart:math' show Point;
+import 'dart:async';
+import 'dart:io' show InternetAddress;
 
 import 'package:flutter/foundation.dart' show Factory;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:maplibre_gl/maplibre_gl.dart';
+import 'package:yandex_mapkit/yandex_mapkit.dart' as ym;
 
 import '../../core/config.dart';
 import '../../core/theme.dart';
 import '../../domain/models.dart';
 import '../../providers.dart';
 
-/// Карта: монохромная подложка из локального сервера + три раздельных слоя
-/// (сохранённые треки, выделенный/текущий трек, положение).
+/// Светлая, почти чёрно-белая схема (штатная стилизация Яндекс MapKit).
+/// Логотип и атрибуцию Яндекса не скрываем и не перекрашиваем.
+const _monoStyle = '''
+[
+  {"stylers": {"saturation": -1}},
+  {"tags": {"any": ["landscape"]}, "elements": "geometry", "stylers": {"color": "#ECECEC"}},
+  {"tags": {"any": ["landcover", "park", "national_park", "vegetation"]}, "elements": "geometry", "stylers": {"color": "#E0E0E0"}},
+  {"tags": {"any": ["water"]}, "elements": "geometry", "stylers": {"color": "#CFCFCF"}},
+  {"tags": {"any": ["building"]}, "elements": "geometry.fill", "stylers": {"color": "#D2D2D2"}},
+  {"tags": {"any": ["building"]}, "elements": "geometry.outline", "stylers": {"color": "#BEBEBE"}},
+  {"tags": {"any": ["road"]}, "elements": "geometry.fill", "stylers": {"color": "#FFFFFF"}},
+  {"tags": {"any": ["road"]}, "elements": "geometry.outline", "stylers": {"color": "#D8D8D8"}},
+  {"elements": "label.text.fill", "stylers": {"color": "#4A4A4A"}},
+  {"elements": "label.text.outline", "stylers": {"color": "#FFFFFF"}},
+  {"tags": {"any": ["shopping", "commercial_services", "food_and_drink"]}, "stylers": {"visibility": "off"}}
+]
+''';
+
+/// Карта Яндекса: фон + три слоя (сохранённые треки, текущий/выбранный трек,
+/// положение). GPS-запись от карты не зависит.
 class TrackMap extends ConsumerStatefulWidget {
   const TrackMap({
     super.key,
@@ -53,89 +72,70 @@ class TrackMap extends ConsumerStatefulWidget {
 }
 
 class _TrackMapState extends ConsumerState<TrackMap> {
-  MapLibreMapController? _c;
-  bool _styleReady = false;
+  ym.YandexMapController? _c;
+  double _zoom = AppConfig.fallbackZoom;
+  List<ym.MapObject> _prevObjs = const [];
+  List<ym.MapObject> _selObjs = const [];
+  Timer? _netTimer;
+  bool _online = true;
 
-  static const _prevSrc = 'prev-src';
-  static const _selSrc = 'sel-src';
-  static const _posSrc = 'pos-src';
+  @override
+  void initState() {
+    super.initState();
+    _prevObjs = _lines('prev', [for (final r in widget.previous) ...r],
+        AppColors.prevRoute, 3.5, 1);
+    _selObjs = _lines('sel', widget.highlighted, AppColors.accent, 5.5, 2);
+    _netTimer = Timer.periodic(const Duration(seconds: 20), (_) => _checkNet());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkNet());
+  }
 
-  Map<String, dynamic> _multiLine(List<List<LatLon>> segs) => {
-        'type': 'FeatureCollection',
-        'features': [
-          for (final s in segs)
-            if (s.length >= 2)
-              {
-                'type': 'Feature',
-                'properties': <String, dynamic>{},
-                'geometry': {
-                  'type': 'LineString',
-                  'coordinates': [
-                    for (final p in s) [p.lon, p.lat]
-                  ],
-                },
-              }
-        ],
-      };
+  @override
+  void dispose() {
+    _netTimer?.cancel();
+    _c = null;
+    super.dispose();
+  }
 
-  Map<String, dynamic> _point(LatLon? p) => {
-        'type': 'FeatureCollection',
-        'features': [
-          if (p != null)
-            {
-              'type': 'Feature',
-              'properties': <String, dynamic>{},
-              'geometry': {
-                'type': 'Point',
-                'coordinates': [p.lon, p.lat],
-              },
-            }
-        ],
-      };
-
-  Future<void> _onStyleLoaded() async {
-    final c = _c;
-    if (c == null) return;
-    final empty = {'type': 'FeatureCollection', 'features': []};
-    await c.addGeoJsonSource(_prevSrc, empty);
-    await c.addGeoJsonSource(_selSrc, empty);
-    await c.addGeoJsonSource(_posSrc, empty);
-    await c.addLineLayer(
-      _prevSrc,
-      'prev-line',
-      const LineLayerProperties(
-        lineColor: AppColors.prevRouteHex,
-        lineWidth: 3.0,
-        lineCap: 'round',
-        lineJoin: 'round',
-      ),
-    );
-    await c.addLineLayer(
-      _selSrc,
-      'sel-line',
-      const LineLayerProperties(
-        lineColor: AppColors.accentHex,
-        lineWidth: 5.5,
-        lineCap: 'round',
-        lineJoin: 'round',
-      ),
-    );
-    await c.addCircleLayer(
-      _posSrc,
-      'pos-circle',
-      const CircleLayerProperties(
-        circleRadius: 8.0,
-        circleColor: AppColors.accentHex,
-        circleStrokeColor: '#FFFFFF',
-        circleStrokeWidth: 3.0,
-      ),
-    );
-    _styleReady = true;
-    await _push();
-    _fit();
-    if (widget.fitBounds == null && widget.centerOn != null) {
-      _center(explicit: true);
+  /// Простая проверка связи, чтобы честно сообщить, что фон карты может не
+  /// загружаться. На запись трека это не влияет.
+  Future<void> _checkNet() async {
+    bool ok;
+    try {
+      final r = await InternetAddress.lookup('yandex.ru')
+          .timeout(const Duration(seconds: 4));
+      ok = r.isNotEmpty;
+    } catch (_) {
+      ok = false;
     }
+    if (!mounted) return;
+    if (_online && !ok) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(const SnackBar(
+        duration: Duration(seconds: 4),
+        content: Text('Нет интернета: фон карты может не загружаться. '
+            'Запись маршрута продолжается.'),
+      ));
+    }
+    _online = ok;
+  }
+
+  static ym.Point _pt(double lat, double lon) =>
+      ym.Point(latitude: lat, longitude: lon);
+
+  List<ym.MapObject> _lines(String prefix, List<List<LatLon>> segs, Color color,
+      double width, double z) {
+    final out = <ym.MapObject>[];
+    var i = 0;
+    for (final s in segs) {
+      if (s.length < 2) continue;
+      out.add(ym.PolylineMapObject(
+        mapId: ym.MapObjectId('$prefix${i++}'),
+        polyline: ym.Polyline(points: [for (final p in s) _pt(p.lat, p.lon)]),
+        strokeColor: color,
+        strokeWidth: width,
+        zIndex: z,
+      ));
+    }
+    return out;
   }
 
   /// Поэлементное сравнение по идентичности: родитель может пересоздавать
@@ -149,77 +149,98 @@ class _TrackMapState extends ConsumerState<TrackMap> {
     return false;
   }
 
-  Future<void> _push() async {
-    await _pushPrev();
-    await _pushSel();
-    await _pushPos();
-  }
-
-  Future<void> _pushPrev() async {
-    final c = _c;
-    if (c == null || !_styleReady) return;
-    await c.setGeoJsonSource(
-        _prevSrc, _multiLine([for (final r in widget.previous) ...r]));
-  }
-
-  Future<void> _pushSel() async {
-    final c = _c;
-    if (c == null || !_styleReady) return;
-    await c.setGeoJsonSource(_selSrc, _multiLine(widget.highlighted));
-  }
-
-  Future<void> _pushPos() async {
-    final c = _c;
-    if (c == null || !_styleReady) return;
-    await c.setGeoJsonSource(_posSrc, _point(widget.position));
-  }
-
-  void _fit() {
-    final c = _c;
-    final b = widget.fitBounds;
-    if (c == null || !_styleReady || b == null) return;
-    // Вырожденные границы (одна точка) — просто приближаем.
-    if ((b.maxLat - b.minLat).abs() < 1e-5 && (b.maxLon - b.minLon).abs() < 1e-5) {
-      c.animateCamera(CameraUpdate.newLatLngZoom(LatLng(b.minLat, b.minLon), 15));
+  Future<void> _onCreated(ym.YandexMapController c) async {
+    _c = c;
+    try {
+      await c.setMapStyle(_monoStyle);
+    } catch (_) {
+      // Стиль не применился — остаётся стандартная карта, работа не страдает.
+    }
+    if (!mounted) return;
+    if (widget.fitBounds != null) {
+      _fit(animate: false);
       return;
     }
-    c.animateCamera(
-      CameraUpdate.newLatLngBounds(
-        LatLngBounds(
-          southwest: LatLng(b.minLat, b.minLon),
-          northeast: LatLng(b.maxLat, b.maxLon),
-        ),
-        left: 40,
-        right: 40,
-        top: 60,
-        bottom: 60,
-      ),
+    final p = widget.centerOn ?? widget.position;
+    if (p != null) {
+      _moveTo(p.lat, p.lon, 15, animate: false);
+      return;
+    }
+    // Положение ещё неизвестно: берём последнее известное (без запросов
+    // разрешений). Если и его нет — вид всей страны, без привязки к городу.
+    _moveTo(AppConfig.fallbackLat, AppConfig.fallbackLon, AppConfig.fallbackZoom,
+        animate: false);
+    final fix = await ref.read(locationServiceProvider).lastKnown();
+    if (!mounted || fix == null) return;
+    if (widget.fitBounds == null && widget.position == null) {
+      _moveTo(fix.lat, fix.lon, 14, animate: false);
+    }
+  }
+
+  void _moveTo(double lat, double lon, double zoom, {bool animate = true}) {
+    final c = _c;
+    if (c == null) return;
+    _zoom = zoom;
+    c.moveCamera(
+      ym.CameraUpdate.newCameraPosition(
+          ym.CameraPosition(target: _pt(lat, lon), zoom: zoom)),
+      animation: animate
+          ? ym.MapAnimation(type: ym.MapAnimationType.smooth, duration: 0.5)
+          : null,
+    );
+  }
+
+  void _fit({bool animate = true}) {
+    final c = _c;
+    final b = widget.fitBounds;
+    if (c == null || b == null) return;
+    final dLat = b.maxLat - b.minLat;
+    final dLon = b.maxLon - b.minLon;
+    // Вырожденные границы (одна точка) — просто приближаем.
+    if (dLat.abs() < 1e-5 && dLon.abs() < 1e-5) {
+      _moveTo(b.minLat, b.minLon, 15, animate: animate);
+      return;
+    }
+    final mLat = (dLat * 0.18).clamp(0.0004, 5.0).toDouble();
+    final mLon = (dLon * 0.18).clamp(0.0004, 5.0).toDouble();
+    c.moveCamera(
+      ym.CameraUpdate.newBounds(ym.BoundingBox(
+        southWest: _pt(b.minLat - mLat, b.minLon - mLon),
+        northEast: _pt(b.maxLat + mLat, b.maxLon + mLon),
+      )),
+      animation: animate
+          ? ym.MapAnimation(type: ym.MapAnimationType.smooth, duration: 0.5)
+          : null,
     );
   }
 
   /// [explicit] — нажатие «Где я»: ставим удобный масштаб. Иначе (следование)
   /// масштаб пользователя не меняем.
   void _center({bool explicit = false}) {
-    final c = _c;
     final p = explicit ? (widget.centerOn ?? widget.position) : widget.position;
-    if (c == null || !_styleReady || p == null) return;
-    final target = LatLng(p.lat, p.lon);
-    if (explicit) {
-      final z = c.cameraPosition?.zoom ?? 0;
-      c.animateCamera(CameraUpdate.newLatLngZoom(
-          target, z < widget.centerZoom - 1 ? widget.centerZoom : z.clamp(widget.centerZoom - 1, 19).toDouble()));
-    } else {
-      c.animateCamera(CameraUpdate.newLatLng(target));
-    }
+    if (_c == null || p == null) return;
+    final z = explicit
+        ? (_zoom < widget.centerZoom - 1
+            ? widget.centerZoom
+            : _zoom.clamp(widget.centerZoom - 1, 19).toDouble())
+        : _zoom;
+    _moveTo(p.lat, p.lon, z);
   }
 
   @override
   void didUpdateWidget(covariant TrackMap old) {
     super.didUpdateWidget(old);
-    if (!_styleReady) return;
-    if (_differs(old.previous, widget.previous)) _pushPrev();
-    if (!identical(old.highlighted, widget.highlighted)) _pushSel();
-    if (old.position != widget.position) _pushPos();
+    var changed = false;
+    if (_differs(old.previous, widget.previous)) {
+      _prevObjs = _lines('prev', [for (final r in widget.previous) ...r],
+          AppColors.prevRoute, 3.5, 1);
+      changed = true;
+    }
+    if (!identical(old.highlighted, widget.highlighted)) {
+      _selObjs = _lines('sel', widget.highlighted, AppColors.accent, 5.5, 2);
+      changed = true;
+    }
+    if (changed) setState(() {});
     if (old.fitNonce != widget.fitNonce) _fit();
     if (old.centerNonce != widget.centerNonce) _center(explicit: true);
     if (widget.follow && old.position != widget.position) _center();
@@ -227,55 +248,39 @@ class _TrackMapState extends ConsumerState<TrackMap> {
 
   @override
   Widget build(BuildContext context) {
-    final style = ref.watch(styleUrlProvider);
-    return style.when(
-      loading: () => const ColoredBox(color: AppColors.bg),
-      error: (e, _) => Center(child: Text('Карта недоступна: $e')),
-      data: (url) => Stack(
-        children: [
-          Listener(
-            onPointerMove: (_) => widget.onUserGesture?.call(),
-            child: MapLibreMap(
-            key: ValueKey(url),
-            styleString: url,
-            initialCameraPosition: CameraPosition(
-              target: widget.position != null
-                  ? LatLng(widget.position!.lat, widget.position!.lon)
-                  : const LatLng(AppConfig.defaultCenterLat, AppConfig.defaultCenterLon),
-              zoom: widget.position != null ? 15 : AppConfig.defaultZoom,
-            ),
-            onMapCreated: (c) {
-              _c = c;
-              _styleReady = false;
-            },
-            onStyleLoadedCallback: _onStyleLoaded,
-            trackCameraPosition: true,
-            onMapClick: (Point<double> p, LatLng l) => widget.onTap?.call(
-                LatLon(l.latitude, l.longitude), _c?.cameraPosition?.zoom ?? 12),
-            compassEnabled: false,
-            rotateGesturesEnabled: false,
-            tiltGesturesEnabled: false,
-            scrollGesturesEnabled: widget.interactive,
-            zoomGesturesEnabled: widget.interactive,
-            // Карта забирает жесты первой: работает масштабирование двумя
-            // пальцами и перемещение даже внутри прокручиваемых экранов.
-            gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
-              Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
-            },
+    final pos = widget.position;
+    return ym.YandexMap(
+      onMapCreated: _onCreated,
+      mapObjects: [
+        ..._prevObjs,
+        ..._selObjs,
+        if (pos != null)
+          ym.PlacemarkMapObject(
+            mapId: ym.MapObjectId('pos'),
+            point: _pt(pos.lat, pos.lon),
+            icon: ym.PlacemarkIcon.single(ym.PlacemarkIconStyle(
+              image: ym.BitmapDescriptor.fromAssetImage('assets/images/pos_dot.png'),
+            )),
           ),
-          ),
-          const Positioned(
-            left: 8,
-            bottom: 6,
-            child: IgnorePointer(
-              child: Text(
-                AppConfig.mapAttribution,
-                style: TextStyle(fontSize: 10, color: AppColors.secondary),
-              ),
-            ),
-          ),
-        ],
-      ),
+      ],
+      onCameraPositionChanged: (position, reason, finished) {
+        _zoom = position.zoom;
+        // Только жесты пользователя отключают автоследование.
+        if (reason == ym.CameraUpdateReason.gestures) {
+          widget.onUserGesture?.call();
+        }
+      },
+      onMapTap: (p) =>
+          widget.onTap?.call(LatLon(p.latitude, p.longitude), _zoom),
+      rotateGesturesEnabled: false,
+      tiltGesturesEnabled: false,
+      scrollGesturesEnabled: widget.interactive,
+      zoomGesturesEnabled: widget.interactive,
+      // Карта забирает жесты первой: масштабирование двумя пальцами и
+      // перемещение работают даже внутри прокручиваемых экранов.
+      gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+        Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
+      },
     );
   }
 }

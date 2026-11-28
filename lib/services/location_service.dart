@@ -91,6 +91,18 @@ class LocationService {
     }
   }
 
+  /// Последнее известное положение без запроса разрешений и без ожидания
+  /// спутников. null — если разрешения нет или положения ещё не было.
+  Future<Fix?> lastKnown() async {
+    try {
+      if (await check() != LocPermission.granted) return null;
+      final p = await Geolocator.getLastKnownPosition();
+      return p == null ? null : toFix(p);
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Fix toFix(Position p) {
     final DateTime? ts = p.timestamp;
     return Fix(

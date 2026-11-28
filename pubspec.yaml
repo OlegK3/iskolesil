@@ -1,7 +1,7 @@
 name: iskolesil
-description: ИСКОЛЕСИЛ — офлайн GPS-трекер для велосипедистов с накопительной картой поездок.
+description: ИСКОЛЕСИЛ — GPS-трекер для велосипедистов с накопительной картой поездок (карта — Яндекс MapKit).
 publish_to: none
-version: 0.2.0+2
+version: 0.3.0+3
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -17,9 +17,8 @@ dependencies:
   path_provider: ^2.1.5
   geolocator: ^13.0.2
   permission_handler: ^11.3.1
-  maplibre_gl: ">=0.20.0 <0.24.0"
+  yandex_mapkit: ^4.3.0
   xml: ^6.5.0
-  crypto: ^3.0.6
   file_picker: ^8.1.6
   share_plus: ^10.1.4
 
@@ -31,7 +30,4 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/catalog.json
     - assets/images/
-    - assets/map/fonts/NotoSans-Regular/
-    - assets/map/fonts/NotoSans-Bold/

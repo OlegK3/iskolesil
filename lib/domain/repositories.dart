@@ -33,10 +33,3 @@ abstract class SettingsRepository {
   Future<String?> getRaw(String key);
   Future<void> setRaw(String key, String? value);
 }
-
-abstract class CityMapRepository {
-  Future<List<CityMap>> list();
-  Future<CityMap?> get(String id);
-  Future<void> upsert(CityMap map);
-  Future<void> delete(String id);
-}

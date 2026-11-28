@@ -4,8 +4,6 @@ enum RideStatus { recording, paused, finished }
 
 enum MeasurementUnits { metric, imperial }
 
-enum InstallStatus { installed, downloading, failed }
-
 class LatLon {
   final double lat;
   final double lon;
@@ -146,89 +144,6 @@ class Ride {
         createdAt: createdAt,
         updatedAt: updatedAt ?? DateTime.now().toUtc(),
       );
-}
-
-class CityMap {
-  final String id;
-  final String name;
-  final String region;
-  final int version;
-  final String localPath;
-  final GeoBounds? bounds;
-  final int sizeBytes;
-  final String checksum;
-  final InstallStatus installationStatus;
-  final DateTime installedAt;
-
-  const CityMap({
-    required this.id,
-    required this.name,
-    this.region = '',
-    required this.version,
-    required this.localPath,
-    this.bounds,
-    required this.sizeBytes,
-    required this.checksum,
-    this.installationStatus = InstallStatus.installed,
-    required this.installedAt,
-  });
-}
-
-/// Записи каталога карт (JSON-каталог).
-class CatalogEntry {
-  final String id;
-  final String name;
-  final String region;
-  final String country;
-  final LatLon center;
-  final GeoBounds bounds;
-  final int version;
-  final DateTime? updatedAt;
-  final int? sizeBytes;
-  final String? url;
-  final String? sha256;
-
-  const CatalogEntry({
-    required this.id,
-    required this.name,
-    required this.region,
-    required this.country,
-    required this.center,
-    required this.bounds,
-    required this.version,
-    this.updatedAt,
-    this.sizeBytes,
-    this.url,
-    this.sha256,
-  });
-
-  bool get downloadable =>
-      url != null && url!.isNotEmpty && sha256 != null && sha256!.isNotEmpty;
-
-  factory CatalogEntry.fromJson(Map<String, dynamic> j) {
-    final c = j['center'] as Map<String, dynamic>;
-    final b = j['bounds'] as Map<String, dynamic>;
-    return CatalogEntry(
-      id: j['id'] as String,
-      name: j['name'] as String,
-      region: (j['region'] ?? '') as String,
-      country: (j['country'] ?? '') as String,
-      center: LatLon((c['lat'] as num).toDouble(), (c['lon'] as num).toDouble()),
-      bounds: GeoBounds(
-        (b['minLat'] as num).toDouble(),
-        (b['minLon'] as num).toDouble(),
-        (b['maxLat'] as num).toDouble(),
-        (b['maxLon'] as num).toDouble(),
-      ),
-      version: (j['version'] as num?)?.toInt() ?? 0,
-      updatedAt: j['updatedAt'] == null
-          ? null
-          : DateTime.tryParse(j['updatedAt'] as String),
-      sizeBytes: (j['sizeBytes'] as num?)?.toInt(),
-      url: j['url'] as String?,
-      sha256: j['sha256'] as String?,
-    );
-  }
 }
 
 class TrackingConfig {

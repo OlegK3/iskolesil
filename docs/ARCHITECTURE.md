@@ -8,15 +8,14 @@
 | Domain | `lib/domain` | Чистый Dart: модели, геометрия, фильтрация трека (`TrackAccumulator`), статистика, GPX, интерфейсы репозиториев. Не зависит от Flutter/Android. |
 | Data | `lib/data` | SQLite (sqflite), миграции, реализации репозиториев. |
 | Location Service | `lib/services/location_service.dart`, `recording_controller.dart` | geolocator + Foreground Service; автомат записи поездки. |
-| Map Service | `lib/services/map/` | Локальный HTTP-сервер тайлов (MBTiles), монохромный стиль, управление картами городов. |
+| Map | `lib/ui/widgets/track_map.dart` | Виджет карты Яндекс MapKit (`yandex_mapkit`): стиль, линии треков, положение, камера. |
 | Storage Service | `lib/services/data_exchange.dart` | GPX, резервные копии. |
 
-Провайдеры — `lib/providers.dart`. Совместно с Android-кодом только канал `ru.iskolesil/storage` (свободное место, метрическая сеть).
+Провайдеры — `lib/providers.dart`. Нативный Android-код: `MainApplication` (инициализация ключа MapKit, генерируется при сборке) и `MainActivity`.
 
 ## Замены относительно предпочтительного стека (обоснование)
 
 - **sqflite вместо Drift**: Drift требует кодогенерации (`build_runner`), а код писался без возможности запускать её. Репозитории скрыты за интерфейсами — переход на Drift не затронет domain/UI.
-- **Локальный loopback-сервер тайлов вместо прямого `mbtiles://`**: поддержка локальных MBTiles в Flutter-плагине MapLibre не проверена; сервер на 127.0.0.1 — простой и контролируемый способ (cleartext разрешён только для loopback через `network_security_config`).
 - **Foreground Service через geolocator** (`ForegroundNotificationConfig`) вместо собственного плагина — меньше нативного кода.
 - **Без Riverpod codegen/uuid/intl/dio**: меньше зависимостей.
 
@@ -52,8 +51,8 @@
 
 ## Карта
 
-`LocalTileServer` (127.0.0.1, случайный порт): `/style.json`, `/tiles/{z}/{x}/{y}.pbf` (MBTiles TMS → XYZ, gzip распаковывается), `/fonts/{stack}/{range}.pbf` (из assets). При нескольких картах приоритет у той, чьи границы содержат центр тайла. Слои поверх карты (GeoJSON): сохранённые треки (`#EFA7AB`, 3 px) → выбранный/текущий (`#F01428`, 5,5 px) → положение (точка с белой обводкой). Геометрия упрощается Дугласом–Пекером (4–6 м) в изоляте (`compute`).
+`TrackMap` (`lib/ui/widgets/track_map.dart`) — Яндекс MapKit. Объекты поверх карты: сохранённые треки (`#EFA7AB`), выбранный/текущий (`#F01428`), положение (метка из `assets/images/pos_dot.png`). Автоследование отключается только жестами пользователя. Геометрия упрощается Дугласом–Пекером в изоляте (`compute`). Подробности: [MAPKIT.md](MAPKIT.md).
 
 ## Задел на будущее (не реализовано)
 
-Интерфейсы `RideRepository/SettingsRepository/CityMapRepository` позволяют добавить синхронизацию; домен без UI можно вынести в пакет для веба/iOS.
+Интерфейсы `RideRepository/SettingsRepository` позволяют добавить синхронизацию; домен без UI можно вынести в пакет для веба/iOS.
